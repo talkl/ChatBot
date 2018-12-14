@@ -14,7 +14,7 @@ from bottle import route, run, template, static_file, request
 with open("./swear_words/swear_words.txt") as f:
     SWEAR_WORDS = sorted(word.strip(" ") for line in f for word in line.split(','))
 GREETING_KEYWORDS = ("hello", "hi", "greetings", "sup", "what's up", 'hey')
-GREETING_RESPONSES = ["'sup bro", "hey", "*nods*", "hey you get my snap?"]
+GREETING_RESPONSES = ["'sup bro", "hey", "How are you dear?", "hey you get my snap?"]
 with open("./positive_quotes/positive_quotes.txt", encoding="utf-8") as f:
     POSITIVE_QUOTES = sorted(word.strip(" ") for line in f for word in line.split(';'))
 EMERGENCY = 'You are not alone in this. I’m here for you. I will now automatically connect you with a human' \
@@ -91,7 +91,9 @@ def find_noun(sent):
     noun = None
 
     for word, part_of_speech in sent.pos_tags:
-        if part_of_speech == 'NN' or 'NNS' or 'NNP' or 'NNPS':
+        if part_of_speech == 'NNP' and word.lower() == 'boto':
+            return word.lower().capitalize()
+        elif part_of_speech == 'NN' or 'NNS' or 'NNP' or 'NNPS':
             noun = word.lower()
     return noun
 
@@ -125,6 +127,7 @@ def find_candidates_parts_of_speech(input):
     verb = None
     adjective = None
     for sentence in sentences:
+        print(sentence.pos_tags)
         pronoun = find_pronoun(sentence)
         noun = find_noun(sentence)
         verb = find_verb(sentence)
@@ -134,7 +137,7 @@ def find_candidates_parts_of_speech(input):
 
 def check_for_comment_about_bot(pronoun, noun, adjective):
     resp = None
-    if pronoun == 'I' and (noun or adjective):
+    if pronoun == 'I' or noun == 'Boto' and (noun or adjective):
         if noun and not adjective:
             if random.choice((True, False)):
                 resp = random.choice(SELF_VERBS_WITH_NOUN_CAPS_PLURAL).format(
@@ -199,7 +202,7 @@ def check_for_mood(text):
     print(classification)
     if classification >= 0.3:
         return 0.85, "I see you are happy today. that's very good. I'm glad", 'laughing'
-    elif 0 <= classification < 0.3:
+    elif -0.2 <= classification < 0.3:
         return 0.85, respond_to_neutral_speech(text), 'takeoff'
     elif classification <= -0.70:
         return 1, EMERGENCY, 'afraid'
@@ -207,7 +210,23 @@ def check_for_mood(text):
         return 0.85, random.choice(POSITIVE_QUOTES), 'ok'
 
 
-analyze_functions = [cursing_exists, check_for_greeting, check_for_mood, check_for_suicide]
+def check_for_name(text):
+    b = TextBlob(text)
+    pairs = b.ngrams(n=2)
+    for pair in pairs:
+        composed_sentence = ''
+        for word in pair:
+            composed_sentence += word.lower()
+            composed_sentence += ' '
+        composed_sentence_trimmed = composed_sentence.strip()
+        if composed_sentence_trimmed == 'my name':
+            for word, part_of_speech in b.pos_tags:
+                if part_of_speech == 'NNP':
+                    return 0.91, 'Hello {0}'.format(word), 'giggling'
+    return 0, None, None
+
+
+analyze_functions = [cursing_exists, check_for_greeting, check_for_mood, check_for_suicide, check_for_name]
 
 
 def analyze_user_message(msg):
