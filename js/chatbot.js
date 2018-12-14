@@ -22,7 +22,9 @@ ChatBot.start = function () {
         ChatBot.bindErrorHandlers();
         ChatBot.initSpeechConfig();
         ChatBot.bindUserActions();
-        ChatBot.write("Hello, My name is Boto. What is yours?", "boto");
+        let welcome_msg = `Hello, my name is Boto. I am a mental health professional.
+        I am concerned with your health and well being. Tell me how are you feeling today?`
+        ChatBot.write(welcome_msg, "boto");
     });
 };
 
