@@ -4,6 +4,7 @@ This is the template server side for ChatBot
 import json
 import random
 from textblob import TextBlob
+from textblob import Word
 from nltk.corpus import movie_reviews
 from textblob.classifiers import NaiveBayesClassifier
 from nltk.tokenize import word_tokenize
@@ -19,18 +20,17 @@ with open("./positive_quotes/positive_quotes.txt", encoding="utf-8") as f:
 EMERGENCY = 'You are not alone in this. I’m here for you. I will now automatically connect you with a human' \
             ' health professional. Eran health center communication: 1201 or 076-8844402 or info@eran.org.il'
 DUO = ['kill myself', 'commit suicide']
-TRIO = ['no one cares', "i do n't care", "i dont care"]
-QUARTET = ["i 'm just tired", "im just tired", "i should just kill", "i want to disappear", "im just stressed out",
+TRIO = ['no one cares', "im stressed out", "i dont care", "im just tired"]
+QUARTET = ["i should just kill", "i want to disappear", "im just stressed out",
            "im not feeling good"]
-QUINT = ["i just want to sleep", 'i cant keep doing this', "i ’m just stressed out",
+QUINT = ["i just want to sleep", 'i cant keep doing this',
          'what will heaven be like', "im having a hard time",
-         "i feel so much better", "i ’m not feeling good"]
-SEXTET = ["i just want to be done", "i just want to be alone", "i ’m having a hard time",
-          "i ca n’t keep doing this"]
+         "i feel so much better"]
+SEXTET = ["i just want to be done", "i just want to be alone"]
 SEPTET = []
-OCTET = ["i dont think ill be at school next", "i donâ\x80\x99t think iâ\x80\x99ll be at school next"]
-NONET = ["if anything happens to me promise to take care", "i can’t imagine living the rest of my life",
-         "i want to tell you something oh never mind", "i don’t think i ’ll be at school next",
+OCTET = ["i dont think ill be at school next"]
+NONET = ["if anything happens to me promise to take care",
+         "i want to tell you something oh never mind",
          "i cant imagine living the rest of my life"]
 
 NGRAM_DICT = {
@@ -55,7 +55,7 @@ def find_pronoun(sent):
     pronoun is found in the input"""
     pronoun = None
 
-    for word, part_of_speech in sent.pos_tags:
+    for word, part_of_speech in TextBlob(sent).pos_tags:
         # Disambiguate pronouns
         if part_of_speech == 'PRP' and word.lower() == 'you':
             pronoun = 'I'
@@ -70,8 +70,8 @@ def find_noun(sent):
     pronoun is found in the input"""
     noun = None
 
-    for word, part_of_speech in sent.pos_tags:
-        if part_of_speech == 'NN':
+    for word, part_of_speech in TextBlob(sent).pos_tags:
+        if part_of_speech == 'NN' or 'NNS' or 'NNP' or 'NNPS':
             return word.lower()
     return noun
 
@@ -100,7 +100,7 @@ def check_for_language(text):
 
 
 def check_for_suicide(text):
-    b = TextBlob(text)
+    b = TextBlob(text.replace("'", ""))
     # iterating through n-grams of 2,3,4,5,6,7,8,9
     for (key, value) in NGRAM_DICT.items():
         ngrams = b.ngrams(n=value)
@@ -110,8 +110,6 @@ def check_for_suicide(text):
                 composed_sentence += word.lower()
                 composed_sentence += ' '
             composed_sentence_trimmed = composed_sentence.strip()
-            print(composed_sentence_trimmed)
-            print(eval(key))
             if composed_sentence_trimmed in eval(key):
                 return 1, EMERGENCY, 'afraid'
     return 0, None, None
@@ -119,8 +117,13 @@ def check_for_suicide(text):
 
 def check_for_mood(text):
     classification = TextBlob(text).sentiment.polarity
-    if classification >= 0:
-        return 0.85, 'I see you are happy today. try asking me for a joke or the weather', 'laughing'
+    print(classification)
+    if classification > 0:
+        return 0.85, "I see you are happy today. that's very good. I'm glad", 'laughing'
+    elif classification == 0:
+        return 0.85, "Ok, i hear you. Try asking me for a joke or the weather. I'm good at it", 'takeoff'
+    elif classification <= -0.70:
+        return 1, EMERGENCY, 'afraid'
     else:
         return 0.85, random.choice(POSITIVE_QUOTES), 'ok'
 
