@@ -44,6 +44,26 @@ NGRAM_DICT = {
     'NONET': 9
 }
 
+# Template for responses that include a direct noun which is indefinite/uncountable
+SELF_VERBS_WITH_NOUN_CAPS_PLURAL = [
+    "My last startup totally crushed the {noun} vertical",
+    "Were you aware I was a serial entrepreneur in the {noun} sector?",
+    "My startup is Uber for {noun}",
+    "I really consider myself an expert on {noun}",
+]
+
+SELF_VERBS_WITH_NOUN_LOWER = [
+    "Yeah but I know a lot about {noun}",
+    "My bros always ask me about {noun}",
+    "Oh you mentioned {noun}, i dreamt about it last night"
+]
+
+SELF_VERBS_WITH_ADJECTIVE = [
+    "I consider myself to be a {adjective}",
+    "I am what i am, sometimes {adjective}, sometimes not, riding inside the matrix",
+    "Is being {adjective} a good thing?"
+]
+
 
 @route('/', method='GET')
 def index():
@@ -55,7 +75,7 @@ def find_pronoun(sent):
     pronoun is found in the input"""
     pronoun = None
 
-    for word, part_of_speech in TextBlob(sent).pos_tags:
+    for word, part_of_speech in sent.pos_tags:
         # Disambiguate pronouns
         if part_of_speech == 'PRP' and word.lower() == 'you':
             pronoun = 'I'
@@ -70,10 +90,60 @@ def find_noun(sent):
     pronoun is found in the input"""
     noun = None
 
-    for word, part_of_speech in TextBlob(sent).pos_tags:
+    for word, part_of_speech in sent.pos_tags:
         if part_of_speech == 'NN' or 'NNS' or 'NNP' or 'NNPS':
-            return word.lower()
+            noun = word.lower()
     return noun
+
+
+def find_verb(sent):
+    """Given a sentence, find a preferred pronoun to respond with. Returns None if no candidate
+    pronoun is found in the input"""
+    verb = None
+
+    for word, part_of_speech in sent.pos_tags:
+        if part_of_speech == 'VB' or 'VBD' or 'VBN' or 'VBP' or 'VBZ':
+            verb = word.lower()
+    return verb
+
+
+def find_adjective(sent):
+    """Given a sentence, find a preferred pronoun to respond with. Returns None if no candidate
+    pronoun is found in the input"""
+    adjective = None
+
+    for word, part_of_speech in sent.pos_tags:
+        if part_of_speech == 'JJ':
+            adjective = word.lower()
+    return adjective
+
+
+def find_candidates_parts_of_speech(input):
+    sentences = TextBlob(input).sentences
+    pronoun = None
+    noun = None
+    verb = None
+    adjective = None
+    for sentence in sentences:
+        pronoun = find_pronoun(sentence)
+        noun = find_noun(sentence)
+        verb = find_verb(sentence)
+        adjective = find_adjective(sentence)
+    return pronoun, noun, adjective, verb
+
+
+def check_for_comment_about_bot(pronoun, noun, adjective):
+    resp = None
+    if pronoun == 'I' and (noun or adjective):
+        if noun and not adjective:
+            if random.choice((True, False)):
+                resp = random.choice(SELF_VERBS_WITH_NOUN_CAPS_PLURAL).format(
+                    **{'noun': TextBlob(noun).words.pluralize()})
+            else:
+                resp = random.choice(SELF_VERBS_WITH_NOUN_LOWER).format(**{'noun': noun})
+        else:
+            resp = random.choice(SELF_VERBS_WITH_ADJECTIVE).format(**{'adjective': adjective})
+    return resp
 
 
 def cursing_exists(user_text):
@@ -115,13 +185,22 @@ def check_for_suicide(text):
     return 0, None, None
 
 
+def respond_to_neutral_speech(text):
+    pronoun, noun, adjective, verb = find_candidates_parts_of_speech(text)
+    resp = check_for_comment_about_bot(pronoun, noun, adjective)
+    if resp:
+        return resp
+    else:
+        return "Ok, i hear you. Try asking me for a joke or the weather. I'm good at it"
+
+
 def check_for_mood(text):
     classification = TextBlob(text).sentiment.polarity
     print(classification)
-    if classification > 0:
+    if classification >= 0.3:
         return 0.85, "I see you are happy today. that's very good. I'm glad", 'laughing'
-    elif classification == 0:
-        return 0.85, "Ok, i hear you. Try asking me for a joke or the weather. I'm good at it", 'takeoff'
+    elif 0 <= classification < 0.3:
+        return 0.85, respond_to_neutral_speech(text), 'takeoff'
     elif classification <= -0.70:
         return 1, EMERGENCY, 'afraid'
     else:
