@@ -207,7 +207,6 @@ def respond_to_neutral_speech(text):
 
 def check_for_mood(text):
     classification = TextBlob(text).sentiment.polarity
-    print(classification)
     if classification >= 0.3:
         return 0.85, "I see you are happy today. that's very good. I'm glad", 'laughing'
     elif -0.2 <= classification < 0.3:
