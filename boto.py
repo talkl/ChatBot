@@ -4,6 +4,8 @@ This is the template server side for ChatBot
 import json
 import random
 from textblob import TextBlob
+from geotext import GeoText
+import requests
 from textblob import Word
 from nltk.corpus import movie_reviews
 from textblob.classifiers import NaiveBayesClassifier
@@ -11,6 +13,8 @@ from nltk.tokenize import word_tokenize
 from bottle import route, run, template, static_file, request
 
 # constants
+with open("./jokes/jokes.txt", encoding="utf-8") as f:
+    JOKES = sorted(joke for text in f for joke in text.split(';'))
 with open("./swear_words/swear_words.txt") as f:
     SWEAR_WORDS = sorted(word.strip(" ") for line in f for word in line.split(','))
 GREETING_KEYWORDS = ("hello", "hi", "greetings", "sup", "what's up", 'hey')
@@ -19,6 +23,11 @@ with open("./positive_quotes/positive_quotes.txt", encoding="utf-8") as f:
     POSITIVE_QUOTES = sorted(word.strip(" ") for line in f for word in line.split(';'))
 EMERGENCY = 'You are not alone in this. I’m here for you. I will now automatically connect you with a human' \
             ' health professional. Eran health center communication: 1201 or 076-8844402 or info@eran.org.il'
+JOKE_INQUIRY = ['what', 'how', 'can', 'do']
+WEATHER_WORDS = ['weather', 'forecast', 'climate', 'temperature', 'cold', 'warm', 'raining', 'sunny', 'wind',
+                 'humidity', 'cloudiness', 'precipitation', 'snowing', 'rainy', 'snow', 'blizzard', 'snowstorm',
+                 'fog', 'foggy', 'downpour']
+
 DUO = ['kill myself', 'commit suicide']
 TRIO = ['no one cares', "im stressed out", "i dont care", "im just tired"]
 QUARTET = ["i should just kill", "i want to disappear", "im just stressed out",
@@ -127,7 +136,6 @@ def find_candidates_parts_of_speech(input):
     verb = None
     adjective = None
     for sentence in sentences:
-        print(sentence.pos_tags)
         pronoun = find_pronoun(sentence)
         noun = find_noun(sentence)
         verb = find_verb(sentence)
@@ -226,7 +234,73 @@ def check_for_name(text):
     return 0, None, None
 
 
-analyze_functions = [cursing_exists, check_for_greeting, check_for_mood, check_for_suicide, check_for_name]
+def check_if_wants_joke(text):
+    b = TextBlob(text)
+    for sentence in b.sentences:
+        inquiry = False
+        for word in sentence.words:
+            if word.lower() in JOKE_INQUIRY:
+                inquiry = True
+        if sentence[-1][-1] == '?':
+            inquiry = True
+        if inquiry and ('joke' in sentence or 'jokes' in sentence or 'Joke' in sentence or 'Jokes' in sentence):
+            return 0.92, random.choice(JOKES), 'laughing'
+    return 0, None, None
+
+
+def get_weather_api(city):
+    """
+    limit:
+    {
+    "cod": 429,
+    "message": "Your account is temporary blocked due to exceeding of requests limitation of your subscription type.
+    Please choose the proper subscription http://openweathermap.org/price"
+    }
+    We recommend making calls to the API no more than one time every 10 minutes for one location (city / coordinates / zip-code). This is due to the fact that weather data in our system is updated no more than one time every 10 minutes.
+    :param city:
+    :return the conditions in the specific city:
+    """
+    api_url = 'http://api.openweathermap.org/data/2.5/forecast'
+    app_id = '7139cf25a9d480c56d195b4cb0a5d493'
+    r = requests.get(url=api_url, params=dict(q=city, APPID=app_id))
+    response_json = r.json()
+    weather_description = response_json.get('list')[0].get('weather')[0].get(
+        'description')
+    weather_temperature = round(response_json.get('list')[0].get('main').get(
+        'temp') - 273.15)
+    weather_wind_speed = round(response_json.get('list')[0].get('wind').get(
+        'speed'))
+    weather_wind_direction = round(response_json.get('list')[0].get('wind').get(
+        'deg'))
+    if response_json.get('cod') == '429':
+        return 'I think we requested too many weather conditions for that location. you can try in 10 minutes'
+    elif response_json.get('cod') == '200':
+        weather_msg = 'Current condition in {0} is {1}. The temperature is {2} celsius. Wind is {3} meter/sec with a' \
+                      ' direction of {4} degrees.'.format(
+            city,
+            weather_description,
+            weather_temperature, weather_wind_speed, weather_wind_direction)
+        return weather_msg
+    else:
+        print('unexpected code from the API')
+        return "sorry i couldn't fetch the weather this time. try again later"
+
+
+def check_for_weather(text):
+    b = TextBlob(text)
+    cities = GeoText(text).cities
+    for sentence in b.sentences:
+        wants_weather = None
+        for word in sentence.words:
+            if word.lower() in WEATHER_WORDS:
+                wants_weather = True
+        if wants_weather and cities:
+            return 0.92, get_weather_api(cities[0]), 'dog'
+    return 0, None, None
+
+
+analyze_functions = [cursing_exists, check_for_greeting, check_for_mood, check_for_suicide, check_for_name,
+                     check_if_wants_joke, check_for_weather]
 
 
 def analyze_user_message(msg):
