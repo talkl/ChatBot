@@ -6,10 +6,6 @@ import random
 from textblob import TextBlob
 from geotext import GeoText
 import requests
-from textblob import Word
-from nltk.corpus import movie_reviews
-from textblob.classifiers import NaiveBayesClassifier
-from nltk.tokenize import word_tokenize
 from bottle import route, run, template, static_file, request
 
 # constants
@@ -275,13 +271,11 @@ def get_weather_api(city):
         return 'I think we requested too many weather conditions for that location. you can try in 10 minutes'
     elif response_json.get('cod') == '200':
         weather_msg = 'Current condition in {0} is {1}. The temperature is {2} celsius. Wind is {3} meter/sec with a' \
-                      ' direction of {4} degrees.'.format(
-            city,
-            weather_description,
-            weather_temperature, weather_wind_speed, weather_wind_direction)
+                      ' direction of {4} degrees.' \
+            .format(city, weather_description, weather_temperature, weather_wind_speed, weather_wind_direction)
         return weather_msg
     else:
-        print('unexpected code from the API')
+        print('code {0} from the API'.format(response_json.get('cod')))
         return "sorry i couldn't fetch the weather this time. try again later"
 
 
